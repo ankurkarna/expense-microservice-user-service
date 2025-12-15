@@ -2,16 +2,16 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven-3.9'
-        jdk 'jdk-25'
+        maven 'maven-3.8.7'
+        jdk 'jdk-17'
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/your-repo/expense-service.git'
+                git branch: 'master',
+                    url: 'https://github.com/xyz.git'
             }
         }
 
