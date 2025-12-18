@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Expense Tracker</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+    <div class="container dashboard">
+        <header class="header">
+            <h1>💰 Expense Tracker</h1>
+            <div class="user-info">
+                <span id="welcomeUser">Welcome!</span>
+                <button onclick="logout()" class="btn btn-secondary">Logout</button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Add Expense Form -->
+            <div class="card">
+                <h2>➕ Add New Expense</h2>
+
+                <div id="expense-error" class="error hidden"></div>
+                <div id="expense-success" class="success hidden"></div>
+
+                <form id="expenseForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="title">Title</label>
+                            <input type="text" id="title" required placeholder="e.g., Groceries">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="amount">Amount (₹)</label>
+                            <input type="number" id="amount" step="0.01" required placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" placeholder="Add details about this expense"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Add Expense</button>
+                </form>
+            </div>
+
+            <!-- Expenses List -->
+            <div class="card">
+                <h2>📋 Your Expenses</h2>
+                <div id="expenses-loading">Loading expenses...</div>
+                <div id="expenses-list" class="expenses-list"></div>
+                <p id="no-expenses" class="hidden">No expenses yet. Add your first expense above!</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const EXPENSE_SERVICE_URL = 'http://localhost:8082';
+
+        // Check if user is logged in
+        const token = localStorage.getItem('token');
+        const userId = localStorage.getItem('userId');
+        const username = localStorage.getItem('username');
+
+        if (!token || !userId) {
+            window.location.href = '/login';
+        }
+
+        // Show username
+        document.getElementById('welcomeUser').textContent = `Welcome, ${username}!`;
+
+        // Load expenses on page load
+        loadExpenses();
+
+        // Add expense form handler
+        document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const expenseData = {
+                userId: parseInt(userId),
+                title: document.getElementById('title').value,
+                description: document.getElementById('description').value,
+                amount: parseFloat(document.getElementById('amount').value)
+            };
+
+            try {
+                const response = await fetch(`${EXPENSE_SERVICE_URL}/expenses`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(expenseData)
+                });
+
+                if (response.ok) {
+                    showExpenseSuccess('Expense added successfully!');
+                    document.getElementById('expenseForm').reset();
+                    loadExpenses(); // Refresh list
+                } else if (response.status === 401 || response.status === 403) {
+                    showExpenseError('Session expired. Please login again.');
+                    setTimeout(() => logout(), 1500);
+                } else {
+                    showExpenseError('Failed to add expense');
+                }
+            } catch (err) {
+                showExpenseError('Cannot connect to expense service. Make sure it is running on port 8082.');
+            }
+        });
+
+        async function loadExpenses() {
+            const loadingDiv = document.getElementById('expenses-loading');
+            const listDiv = document.getElementById('expenses-list');
+            const noExpensesP = document.getElementById('no-expenses');
+
+            try {
+                const response = await fetch(`${EXPENSE_SERVICE_URL}/expenses/user/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                loadingDiv.classList.add('hidden');
+
+                if (response.ok) {
+                    const expenses = await response.json();
+
+                    if (expenses.length === 0) {
+                        noExpensesP.classList.remove('hidden');
+                        listDiv.innerHTML = '';
+                    } else {
+                        noExpensesP.classList.add('hidden');
+                        listDiv.innerHTML = expenses.map(exp => `
+                            <div class="expense-item">
+                                <div class="expense-info">
+                                    <strong>${exp.title}</strong>
+                                    <p>${exp.description || 'No description'}</p>
+                                </div>
+                                <div class="expense-amount">₹${exp.amount.toFixed(2)}</div>
+                                <button onclick="deleteExpense(${exp.id})" class="btn btn-danger btn-small">🗑️</button>
+                            </div>
+                        `).join('');
+                    }
+                } else if (response.status === 401 || response.status === 403) {
+                    loadingDiv.textContent = 'Session expired. Please login again.';
+                    setTimeout(() => logout(), 1500);
+                } else {
+                    loadingDiv.textContent = 'Failed to load expenses';
+                }
+            } catch (err) {
+                loadingDiv.textContent = 'Cannot connect to expense service. Make sure it is running on port 8082.';
+            }
+        }
+
+        async function deleteExpense(id) {
+            if (!confirm('Are you sure you want to delete this expense?')) return;
+
+            try {
+                const response = await fetch(`${EXPENSE_SERVICE_URL}/expenses/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    loadExpenses();
+                } else {
+                    alert('Failed to delete expense');
+                }
+            } catch (err) {
+                alert('Connection error');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('username');
+            window.location.href = '/login';
+        }
+
+        function showExpenseError(message) {
+            const div = document.getElementById('expense-error');
+            div.textContent = message;
+            div.classList.remove('hidden');
+            document.getElementById('expense-success').classList.add('hidden');
+        }
+
+        function showExpenseSuccess(message) {
+            const div = document.getElementById('expense-success');
+            div.textContent = message;
+            div.classList.remove('hidden');
+            document.getElementById('expense-error').classList.add('hidden');
+            setTimeout(() => div.classList.add('hidden'), 3000);
+        }
+    </script>
+</body>
+
+</html>

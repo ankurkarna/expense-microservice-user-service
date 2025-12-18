@@ -33,7 +33,11 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/register/**", "/auth/**", "/user/**").permitAll() // allow register & login
+                        // Allow frontend pages (auth is checked client-side via JS)
+                        .requestMatchers("/", "/login", "/register", "/dashboard", "/css/**", "/js/**").permitAll()
+                        // Allow API endpoints
+                        .requestMatchers("/auth/**", "/user/**").permitAll()
+                        // API endpoints that require JWT
                         .requestMatchers("/expense/**").authenticated()
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
