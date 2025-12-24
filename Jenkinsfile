@@ -51,14 +51,13 @@ pipeline {
                 echo "Applying Kubernetes Manifest..."
                 // Uses the 'k8s-config' credential we created in Jenkins
                 withKubeConfig([credentialsId: 'k8s-config']) {
-                    // This assumes user-service.yaml is in the ROOT of your repo
-                    sh "kubectl apply -f user-service.yaml"
-                    
-                    // Force a restart so the pod picks up the NEW image immediately
-                    sh "kubectl rollout restart deployment user-service"
-                    
-                    // Check status
-                    sh "kubectl get pods"
+              // We use --server and --insecure-skip-tls-verify to force the connection
+            // to the internal Kind IP and port 6443
+            sh "kubectl apply -f user-service.yaml --server=https://172.18.0.2:6443 --insecure-skip-tls-verify=true --validate=false"
+            
+            sh "kubectl rollout restart deployment user-service --server=https://172.18.0.2:6443 --insecure-skip-tls-verify=true"
+            
+            sh "kubectl get pods --server=https://172.18.0.2:6443 --insecure-skip-tls-verify=true"
                 }
             }
         }
